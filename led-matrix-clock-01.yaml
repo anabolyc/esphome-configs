@@ -37,6 +37,7 @@ captive_portal:
 time:
   - platform: sntp
     id: esptime
+    timezone: Europe/Warsaw
 
 font:
   - file: fonts/pixelmix.ttf
