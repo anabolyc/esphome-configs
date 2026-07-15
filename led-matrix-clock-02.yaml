@@ -1,6 +1,8 @@
 substitutions:
   name: esphome-web-cb6704
   friendly_name: led-matrix-clock-02
+  night_start_hour: "23"
+  night_end_hour: "6"
 
 esphome:
   name: ${name}
@@ -89,6 +91,9 @@ font:
       - "\U000F058E" # mdi-water-percent
       - "\U000F04C5" # mdi-speedometer
       - "\U000F0E0A" # mdi-water
+      - "\U000F0F67" # mdi-moon-waxing-crescent
+      - "\U000F05A9" # mdi-wifi
+      - "\U000F1510" # mdi-clock-sync-outline
 
 sensor:
   - platform: homeassistant
@@ -105,6 +110,13 @@ text_sensor:
     entity_id: weather.forecast_home
     id: temperature_unit
     attribute: temperature_unit
+
+switch:
+  - platform: template
+    name: "Kids Mode"
+    id: kids_mode
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_OFF
 
 spi:
   clk_pin: GPIO14
@@ -154,17 +166,39 @@ display:
         {"clear-night", "\U000F0594"},
       };
       
-      auto seconds = id(esptime).now().second;
-      if ((seconds < 25) || (seconds >= 30 && seconds < 55)) {
-        auto timestring = id(esptime).now().strftime("%H %M");
-        it.printf(16, 0, id(digit_font), Color::WHITE, TextAlign::TOP_CENTER, "%s", timestring.c_str());
-        if (seconds % 2 == 0) {
-          it.print(16, 0, id(digit_font), Color::WHITE, TextAlign::TOP_CENTER, ":");
-        }
-      } else if (seconds < 35) {
-        auto datestring = id(esptime).now().strftime(" %d %b");
-        it.printf(16, 0, id(digit_font), Color::WHITE, TextAlign::TOP_CENTER, "%s", datestring.c_str());
+      if (!wifi::global_wifi_component->is_connected()) {
+        it.printf(16, -1, id(font_mdi), Color::WHITE, TextAlign::TOP_CENTER, "\U000F05A9");
+      } else if (!id(esptime).now().is_valid()) {
+        it.printf(16, -1, id(font_mdi), Color::WHITE, TextAlign::TOP_CENTER, "\U000F1510");
       } else {
-        it.printf(32, 0, id(digit_font), Color::WHITE, TextAlign::TOP_RIGHT, "%d%s", int(id(temperature).state), id(temperature_unit).state.c_str());
-        it.printf(-1, -1, id(font_mdi), Color::WHITE, TextAlign::TOP_LEFT, "%s", weather_icon_map[id(weather).state.c_str()].c_str());
+
+      auto now = id(esptime).now();
+      int current_hour = now.hour;
+      bool is_night_hour = (current_hour >= ${night_start_hour} || current_hour < ${night_end_hour});
+
+      if (id(kids_mode).state && is_night_hour) {
+        it.printf(16, -1, id(font_mdi), Color::WHITE, TextAlign::TOP_CENTER, "\U000F0F67");
+      } else {
+        auto seconds = now.second;
+        if ((seconds < 25) || (seconds >= 30 && seconds < 55)) {
+          auto timestring = now.strftime("%H %M");
+          it.printf(16, 0, id(digit_font), Color::WHITE, TextAlign::TOP_CENTER, "%s", timestring.c_str());
+          if (seconds % 2 == 0) {
+            it.print(16, 0, id(digit_font), Color::WHITE, TextAlign::TOP_CENTER, ":");
+          }
+        } else if (seconds < 35) {
+          auto datestring = now.strftime(" %d %b");
+          it.printf(16, 0, id(digit_font), Color::WHITE, TextAlign::TOP_CENTER, "%s", datestring.c_str());
+        } else {
+          it.printf(32, 0, id(digit_font), Color::WHITE, TextAlign::TOP_RIGHT, "%d%s", int(id(temperature).state), id(temperature_unit).state.c_str());
+          it.printf(-1, -1, id(font_mdi), Color::WHITE, TextAlign::TOP_LEFT, "%s", weather_icon_map[id(weather).state.c_str()].c_str());
+        }
       }
+
+      } // end wifi+time check
+
+
+# ===== Packages =====
+packages:
+  monitoring: !include packages/monitoring-8266.yaml
+  monitoring_wifi: !include packages/monitoring-wifi.yaml

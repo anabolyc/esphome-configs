@@ -1,0 +1,292 @@
+substitutions:
+  ir_rx_pin: GPIO0
+
+remote_receiver:
+  id:   ir_rx
+  pin: 
+    number: ${ir_rx_pin}
+    inverted: true
+    mode:
+      input: true
+
+  dump: 
+    - nec
+    - samsung
+    - panasonic
+
+
+infrared:
+  - platform: ir_rf_proxy
+    name: IR Receiver
+    # receiver_frequency: 38kHz
+    remote_receiver_id: ir_rx
+
+script:
+  - id: ir_recognized_blink
+    mode: restart
+    then:
+      - light.turn_on:
+          id: rgb_front_led
+          red: 0%
+          green: 100%
+          blue: 0%
+          brightness: 100%
+      - delay: 50ms
+      - light.turn_off: rgb_front_led
+
+binary_sensor:
+  - platform: remote_receiver
+    name: "Samsung Play/Pause"
+    samsung:
+      data: 0xE0E036C9
+    on_press: &ir_recognized_action
+      - script.execute: ir_recognized_blink
+
+  - platform: remote_receiver
+    name: "Samsung Stop"
+    samsung:
+      data: 0xE0E028D7
+    on_press: *ir_recognized_action
+
+  - platform: remote_receiver
+    name: "Samsung Vol Down"
+    samsung:
+      data: 0xE0E0A857
+    on_press: *ir_recognized_action
+
+  - platform: remote_receiver
+    name: "Samsung Vol Up"
+    samsung:
+      data: 0xE0E06897
+    on_press: *ir_recognized_action
+
+  - platform: remote_receiver
+    name: "NEC power"
+    nec:
+      address: 0xFE01
+      command: 0xBF40
+    on_press: *ir_recognized_action
+
+  - platform: remote_receiver
+    name: "NEC play/pause"
+    nec:
+      address: 0xFE01
+      command: 0xEC13
+    on_press: *ir_recognized_action
+
+  - platform: remote_receiver
+    name: "NEC Vol Up"
+    nec:
+      address: 0xFE01
+      command: 0xE718
+    on_press: *ir_recognized_action
+
+  - platform: remote_receiver
+    name: "NEC Vol Down"
+    nec:
+      address: 0xFE01
+      command: 0xEF10
+    on_press: *ir_recognized_action
+
+  - platform: remote_receiver
+    name: "NEC Ch 1"
+    nec:
+      address: 0xFE01
+      command: 0xB14E
+    on_press: *ir_recognized_action
+
+  - platform: remote_receiver
+    name: "NEC Ch 2"
+    nec:
+      address: 0xFE01
+      command: 0xF20D
+    on_press: *ir_recognized_action
+
+  - platform: remote_receiver
+    name: "NEC Ch 3"
+    nec:
+      address: 0xFE01
+      command: 0xF30C
+    on_press: *ir_recognized_action
+
+  - platform: remote_receiver
+    name: "NEC Ch 4"
+    nec:
+      address: 0xFE01
+      command: 0xB54A
+    on_press: *ir_recognized_action
+
+  - platform: remote_receiver
+    name: "NEC Ch 5"
+    nec:
+      address: 0xFE01
+      command: 0xF609
+    on_press: *ir_recognized_action
+
+  - platform: remote_receiver
+    name: "NEC Ch 6"
+    nec:
+      address: 0xFE01
+      command: 0xF708
+    on_press: *ir_recognized_action
+
+  - platform: remote_receiver
+    name: "NEC Ch 7"
+    nec:
+      address: 0xFE01
+      command: 0xB946
+    on_press: *ir_recognized_action
+
+  - platform: remote_receiver
+    name: "NEC Ch 8"
+    nec:
+      address: 0xFE01
+      command: 0xFA05
+    on_press: *ir_recognized_action
+
+  - platform: remote_receiver
+    name: "NEC Ch 9"
+    nec:
+      address: 0xFE01
+      command: 0xFB04
+    on_press: *ir_recognized_action
+
+  - platform: remote_receiver
+    name: "NEC Ch 10"
+    nec:
+      address: 0xFE01
+      command: 0xBE41
+    on_press: *ir_recognized_action
+
+  - platform: remote_receiver
+    name: "NEC Ch 11"
+    nec:
+      address: 0xFE01
+      command: 0xFE01
+    on_press: *ir_recognized_action
+
+  - platform: remote_receiver
+    name: "NEC Ch 12"
+    nec:
+      address: 0xFE01
+      command: 0xBD42
+    on_press: *ir_recognized_action
+
+  - platform: remote_receiver
+    name: "NEC light 1"
+    nec:
+      address: 0xFE01
+      command: 0x0DF2
+    on_press: *ir_recognized_action
+
+  - platform: remote_receiver
+    name: "NEC light 2"
+    nec:
+      address: 0xFE01
+      command: 0x0CF3
+    on_press: *ir_recognized_action
+
+  - platform: remote_receiver
+    name: "NEC light 3"
+    nec:
+      address: 0xFE01
+      command: 0x0BF4
+    on_press: *ir_recognized_action
+
+  - platform: remote_receiver
+    name: "NEC light 4"
+    nec:
+      address: 0xFE01
+      command: 0x0AF5
+    on_press: *ir_recognized_action
+
+  - platform: remote_receiver
+    name: "NEC light off"
+    nec:
+      address: 0xFE01
+      command: 0x0EF1
+    on_press: *ir_recognized_action
+
+  - platform: remote_receiver
+    name: "NEC Next"
+    nec:
+      address: 0xFE01
+      command: 0xB04F
+    on_press: *ir_recognized_action
+
+  - platform: remote_receiver
+    name: "NEC Prev"
+    nec:
+      address: 0xFE01
+      command: 0xB44B
+    on_press: *ir_recognized_action
+
+  - platform: remote_receiver
+    name: "NEC LED"
+    nec:
+      address: 0xFE01
+      command: 0xF00F
+    on_press: *ir_recognized_action
+
+  - platform: remote_receiver
+    name: "NEC KD"
+    nec:
+      address: 0xFE01
+      command: 0xBC43
+    on_press: *ir_recognized_action
+
+  - platform: remote_receiver
+    name: "NEC Home"
+    nec:
+      address: 0xFE01
+      command: 0xEE11
+    on_press: *ir_recognized_action
+
+  - platform: remote_receiver
+    name: "NEC Back"
+    nec:
+      address: 0xFE01
+      command: 0xE619
+    on_press: *ir_recognized_action
+
+  - platform: remote_receiver
+    name: "NEC Menu"
+    nec:
+      address: 0xFE01
+      command: 0xFF00
+    on_press: *ir_recognized_action
+
+  - platform: remote_receiver
+    name: "NEC Arrow"
+    nec:
+      address: 0xFE01
+      command: 0xB34C
+    on_press: *ir_recognized_action
+
+  - platform: remote_receiver
+    name: "NEC Up"
+    nec:
+      address: 0xFE01
+      command: 0xE916
+    on_press: *ir_recognized_action
+
+  - platform: remote_receiver
+    name: "NEC Down"
+    nec:
+      address: 0xFE01
+      command: 0xE51A
+    on_press: *ir_recognized_action
+
+  - platform: remote_receiver
+    name: "NEC Left"
+    nec:
+      address: 0xFE01
+      command: 0xAE51
+    on_press: *ir_recognized_action
+
+  - platform: remote_receiver
+    name: "NEC Right"
+    nec:
+      address: 0xFE01
+      command: 0xAF50
+    on_press: *ir_recognized_action

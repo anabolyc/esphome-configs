@@ -2,116 +2,40 @@
 	"version": "2.0.0",
 	"tasks": [
 		{
-			"label": "ESPHome: Build Current File (Stable)",
+			"label": "ESPHome: Build Current File",
 			"type": "shell",
-			"command": "docker",
-			"args": [
-				"run",
-				"--rm",
-				"-v",
-				"${fileDirname}:/config",
-				"-v",
-				"${workspaceFolder}/fonts:/config/fonts",
-				"-v",
-				"${workspaceFolder}/packages:/config/packages",
-				"-v",
-				"${workspaceFolder}/.secrets/secrets.yaml:/config/secrets.yaml",
-				"-v",
-				"${workspaceFolder}/.esphome-cache:/cache",
-				"-e",
-				"PLATFORMIO_BUILD_CACHE_DIR=/cache/.pio-cache",
-				"-it",
-				"esphome/esphome:latest",
-				"compile",
-				"/config/${fileBasename}"
-			],
+			"command": ".venv/bin/esphome compile ${file}",
+			"options": {
+				"cwd": "${workspaceFolder}"
+			},
 			"problemMatcher": [],
 			"group": "build"
 		},
 		{
-			"label": "ESPHome: Build Current File (Develop)",
+			"label": "ESPHome: Build and Upload OTA",
 			"type": "shell",
-			"command": "docker",
-			"args": [
-				"run",
-				"--rm",
-				"-v",
-				"${fileDirname}:/config",
-				"-v",
-				"${workspaceFolder}/fonts:/config/fonts",
-				"-v",
-				"${workspaceFolder}/packages:/config/packages",
-				"-v",
-				"${workspaceFolder}/.secrets/secrets.yaml:/config/secrets.yaml",
-				"-v",
-				"${workspaceFolder}/.esphome-cache:/cache",
-				"-e",
-				"PLATFORMIO_BUILD_CACHE_DIR=/cache/.pio-cache",
-				"-it",
-				"esphome/esphome:dev",
-				"compile",
-				"/config/${fileBasename}"
-			],
-			"problemMatcher": [],
-			"group": "build"
-		},
-		{
-			"label": "ESPHome: Build and Upload OTA (Stable)",
-			"type": "shell",
-			"command": "docker",
-			"args": [
-				"run",
-				"--rm",
-				"--network=host",
-				"-v",
-				"${fileDirname}:/config",
-				"-v",
-				"${workspaceFolder}/fonts:/config/fonts",
-				"-v",
-				"${workspaceFolder}/packages:/config/packages",
-				"-v",
-				"${workspaceFolder}/.secrets/secrets.yaml:/config/secrets.yaml",
-				"-v",
-				"${workspaceFolder}/.esphome-cache:/cache",
-				"-e",
-				"PLATFORMIO_BUILD_CACHE_DIR=/cache/.pio-cache",
-				"-it",
-				"esphome/esphome:latest",
-				"run",
-				"/config/${fileBasename}",
-				"--device",
-				"OTA"
-			],
+			"command": ".venv/bin/esphome run ${file} --device OTA",
+			"options": {
+				"cwd": "${workspaceFolder}"
+			},
 			"problemMatcher": []
 		},
 		{
-			"label": "ESPHome: Build and Upload OTA (Develop)",
+			"label": "ESPHome: Build and Upload over USB",
 			"type": "shell",
-			"command": "docker",
-			"args": [
-				"run",
-				"--rm",
-				"--network=host",
-				"-v",
-				"${fileDirname}:/config",
-				"-v",
-				"${workspaceFolder}/fonts:/config/fonts",
-				"-v",
-				"${workspaceFolder}/packages:/config/packages",
-				"-v",
-				"${workspaceFolder}/.secrets/secrets.yaml:/config/secrets.yaml",
-				"-v",
-				"${workspaceFolder}/.esphome-cache:/cache",
-				"-e",
-				"PLATFORMIO_BUILD_CACHE_DIR=/cache/.pio-cache",
-				"-it",
-				"esphome/esphome:dev",
-				"run",
-				"/config/${fileBasename}",
-				"--device",
-				"OTA"
-			],
+			"command": ".venv/bin/esphome run ${file} --device ${input:usbPort}",
+			"options": {
+				"cwd": "${workspaceFolder}"
+			},
 			"problemMatcher": []
+		}
+	],
+	"inputs": [
+		{
+			"id": "usbPort",
+			"type": "promptString",
+			"description": "USB serial port",
+			"default": "/dev/tty.usbserial-0001"
 		}
 	]
 }
