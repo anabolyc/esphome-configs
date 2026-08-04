@@ -27,6 +27,15 @@ substitutions:
   display_dc_pin: GPIO04
   display_reset_pin: GPIO32
 
+  # Touch
+  touch_cs_pin: GPIO02
+
+  # SDCARD
+  sdcard_cs_pin: GPIO27
+
+  # Battery sense pin
+  batt_sense_pin: GPIO34
+  
 esphome:
   name: ${name}
   friendly_name: ${friendly_name}
@@ -39,7 +48,7 @@ esphome:
     then:
     - media_player.volume_set:
         id: external_media_player
-        volume: 60%
+        volume: 0%
 
 esp32:
   id: esp32_id
@@ -48,9 +57,9 @@ esp32:
   cpu_frequency: 240MHz
   framework:
     type: esp-idf
-    version: recommended
-    advanced:
-      minimum_chip_revision: "3.1" 
+    version: 5.5.4
+#    advanced:
+#      minimum_chip_revision: "3.1" 
     sdkconfig_options:
       # Moves instructions and read only data from flash into PSRAM on boot.
       # Both enabled allows instructions to execute while a flash operation is in progress without needing to be placed in IRAM.
@@ -82,568 +91,126 @@ psram:
   
 http_request:
 
-# i2s_audio:
-#   i2s_lrclk_pin: GPIO25
-#   i2s_bclk_pin: GPIO26
+sensor:
+  - platform: homeassistant
+    entity_id: weather.forecast_home
+    id: temperature
+    attribute: temperature
 
-# media_player:
-#   - platform: i2s_audio
-#     name: $friendly_name
-#     id: loudesp
-#     dac_type: external
-#     i2s_dout_pin: GPIO22
-#     mode: stereo
-#     on_play: 
-#       then:
-#         - light.addressable_set: 
-#             id: rgb_front_led
-#             red: 0
-#             green: 10%
-#             blue: 0
-#     on_idle: 
-#       then:
-#         - light.addressable_set: 
-#             id: rgb_front_led
-#             red: 10%
-#             green: 0
-#             blue: 0
+  - platform: homeassistant
+    entity_id: weather.forecast_home
+    id: humidity
+    attribute: humidity
 
-# script:
-#   - id: script_mopidy_volume_up
-#     then:
-#       - logger.log: "IR remote: Volume Up"  
-#       - light.addressable_set: 
-#           id: rgb_front_led
-#           red: 0
-#           green: 0
-#           blue: 75%
-#       - homeassistant.service:
-#           service: script.mopidy_volume_up
-#       - delay: 500ms 
-#       - light.addressable_set: 
-#           id: rgb_front_led
-#           red: 0
-#           green: 0
-#           blue: 0
-#   - id: script_mopidy_volume_down
-#     then:
-#       - logger.log: "IR remote: Volume Down"
-#       - light.addressable_set: 
-#           id: rgb_front_led
-#           red: 0
-#           green: 0
-#           blue: 75%
-#       - homeassistant.service:
-#           service: script.mopidy_volume_down
-#       - delay: 500ms 
-#       - light.addressable_set: 
-#           id: rgb_front_led
-#           red: 0
-#           green: 0
-#           blue: 0
-#   - id: script_mopidy_stop
-#     then:
-#       - logger.log: "IR remote: Stop"
-#       - light.addressable_set: 
-#           id: rgb_front_led
-#           red: 0
-#           green: 0
-#           blue: 75%
-#       - homeassistant.service:
-#           service: script.mopidy_stop
-#       - delay: 500ms 
-#       - light.addressable_set: 
-#           id: rgb_front_led
-#           red: 0
-#           green: 0
-#           blue: 0
-#   - id: script_mopidy_play_pause
-#     then:
-#       - logger.log: "IR remote: Play/Pause"
-#       - light.addressable_set: 
-#           id: rgb_front_led
-#           red: 0
-#           green: 0
-#           blue: 75%
-#       - homeassistant.service:
-#           service: script.mopidy_play_pause
-#       - delay: 500ms 
-#       - light.addressable_set: 
-#           id: rgb_front_led
-#           red: 0
-#           green: 0
-#           blue: 0
-#   - id: script_mopidy_next_track
-#     then:
-#       - logger.log: "IR remote: Next"
-#       - light.addressable_set: 
-#           id: rgb_front_led
-#           red: 0
-#           green: 0
-#           blue: 75%
-#       - homeassistant.service:
-#           service: script.mopidy_next_track
-#       - delay: 500ms 
-#       - light.addressable_set: 
-#           id: rgb_front_led
-#           red: 0
-#           green: 0
-#           blue: 0
-#   - id: script_mopidy_prev_track
-#     then:
-#       - logger.log: "IR remote: Prev"
-#       - light.addressable_set: 
-#           id: rgb_front_led
-#           red: 0
-#           green: 0
-#           blue: 75%
-#       - homeassistant.service:
-#           service: script.mopidy_prev_track
-#       - delay: 500ms 
-#       - light.addressable_set: 
-#           id: rgb_front_led
-#           red: 0
-#           green: 0
-#           blue: 0
-#   - id: script_mopidy_play_content
-#     parameters: 
-#       content_id: string
-#     then:
-#       - logger.log: "IR remote: Play content"
-#       - light.addressable_set: 
-#           id: rgb_front_led
-#           red: 0
-#           green: 0
-#           blue: 75%
-#       - homeassistant.service:
-#           service: script.mopidy_play_content
-#           data:
-#             media_content_id: !lambda return content_id;
-#             media_content_type: "music"
-#       - delay: 500ms 
-#       - light.addressable_set: 
-#           id: rgb_front_led
-#           red: 0
-#           green: 0
-#           blue: 0
-#   - id: script_light_set_state
-#     parameters: 
-#       state_id: string
-#     then:
-#       - logger.log: "IR remote: Light set"  
-#       - light.addressable_set: 
-#           id: rgb_front_led
-#           red: 0
-#           green: 75%
-#           blue: 0
-#       - homeassistant.service:
-#           service: script.light_set_state
-#           data:
-#             state_id: !lambda return state_id;
-#       - delay: 500ms 
-#       - light.addressable_set: 
-#           id: rgb_front_led
-#           red: 0
-#           green: 0
-#           blue: 0
+  - platform: homeassistant
+    entity_id: weather.forecast_home
+    id: pressure
+    attribute: pressure
 
-# switch:
-#   - platform: restart
-#     name: "$friendly_name restart"
-#   - platform: shutdown
-#     name: "$friendly_name shutdown"
-#   - platform: safe_mode
-#     name: "$friendly_name restart (Safe Mode)"
+  - platform: homeassistant
+    entity_id: weather.forecast_home
+    id: wind_speed
+    attribute: wind_speed
 
-# color:
-#   - id: aux_text_color
-#     red: 80%
-#     green: 80%
-#     blue: 80%
+  - platform: homeassistant
+    entity_id: sensor.weather_forecast_precipitation_1d
+    id: forecast_1d_precipitation
 
-#   - id: muted_text_color
-#     red: 30%
-#     green: 30%
-#     blue: 30%
+  - platform: homeassistant
+    entity_id: sensor.weather_forecast_wind_speed_1d
+    id: forecast_1d_wind_speed
 
-#   - id: text_color
-#     red: 20%
-#     green: 90%
-#     blue: 90%
+  - platform: homeassistant
+    entity_id: sensor.weather_forecast_temperature_max_1d
+    id: forecast_1d_temperature_high
 
-#   - id: water_color
-#     red_int: 52
-#     green_int: 195
-#     blue_int: 235
+  - platform: homeassistant
+    entity_id: sensor.weather_forecast_temperature_low_1d
+    id: forecast_1d_temperature_low
 
-#   - id: sun_color
-#     red_int: 235
-#     green_int: 195
-#     blue_int: 52
+  - platform: homeassistant
+    entity_id: sensor.weather_forecast_precipitation_2d
+    id: forecast_2d_precipitation
 
-#   - id: leaf_color
-#     red_int: 195
-#     green_int: 235
-#     blue_int: 52
+  - platform: homeassistant
+    entity_id: sensor.weather_forecast_wind_speed_2d
+    id: forecast_2d_wind_speed
 
-#   - id: greenish_color
-#     red_int: 52
-#     green_int: 235
-#     blue_int: 195
+  - platform: homeassistant
+    entity_id: sensor.weather_forecast_temperature_max_2d
+    id: forecast_2d_temperature_high
 
-#   - id: sunset_color
-#     red_int: 235
-#     green_int: 137
-#     blue_int: 52
+  - platform: homeassistant
+    entity_id: sensor.weather_forecast_temperature_low_2d
+    id: forecast_2d_temperature_low
 
-#   - id: night_color
-#     red_int: 52
-#     green_int: 52
-#     blue_int: 235
+  - platform: homeassistant
+    entity_id: sensor.weather_forecast_precipitation_3d
+    id: forecast_3d_precipitation
 
-# image:
-#   - file: mdi:play-circle
-#     id: mdi_play
-#     type: grayscale
-#     resize: 80x80
+  - platform: homeassistant
+    entity_id: sensor.weather_forecast_wind_speed_3d
+    id: forecast_3d_wind_speed
 
-#   - file: mdi:stop-circle
-#     id: mdi_stop
-#     type: grayscale
-#     resize: 80x80
+  - platform: homeassistant
+    entity_id: sensor.weather_forecast_temperature_max_3d
+    id: forecast_3d_temperature_high
 
-#   - file: mdi:pause-circle
-#     id: mdi_pause
-#     type: grayscale
-#     resize: 80x80
+  - platform: homeassistant
+    entity_id: sensor.weather_forecast_temperature_low_3d
+    id: forecast_3d_temperature_low
 
-#   - file: mdi:skip-next
-#     id: mdi_next
-#     type: grayscale
-#     resize: 80x80
+  - platform: homeassistant
+    entity_id: sensor.weather_forecast_precipitation_4d
+    id: forecast_4d_precipitation
 
-#   - file: mdi:skip-previous
-#     id: mdi_prev
-#     type: grayscale
-#     resize: 80x80
+  - platform: homeassistant
+    entity_id: sensor.weather_forecast_wind_speed_4d
+    id: forecast_4d_wind_speed
 
-#   - file: mdi:volume-minus
-#     id: mdi_volume_minus
-#     type: grayscale
-#     resize: 40x40
+  - platform: homeassistant
+    entity_id: sensor.weather_forecast_temperature_max_4d
+    id: forecast_4d_temperature_high
 
-#   - file: mdi:volume-plus
-#     id: mdi_volume_plus
-#     type: grayscale
-#     resize: 40x40
+  - platform: homeassistant
+    entity_id: sensor.weather_forecast_temperature_low_4d
+    id: forecast_4d_temperature_low
 
-# font:
-#   - file:
-#       type: gfonts
-#       family: Roboto+Mono
-#       weight: thin
-#     id: roboto_thin
-#     size: 96
-#     glyphs: &text-glyphs
-#       ['&', '@', '!', ',', '.', '"', '%', '(', ')', '+', '-', '_', ':', '°', '0',
-#        '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E',
-#        'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S',
-#        'T', 'U', 'V', 'W', 'X', 'Y', 'Z', ' ', 'a', 'b', 'c', 'd', 'e', 'f',
-#        'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't',
-#        'u', 'v', 'w', 'x', 'y', 'z','å', 'ä', 'ö', '/','º','µ','³','''']
+text_sensor:
+  - platform: homeassistant
+    entity_id: weather.forecast_home
+    id: weather
 
-#   - file:
-#       type: gfonts
-#       family: Roboto+Mono
-#       weight: regular
-#     id: roboto_thick
-#     size: 96
-#     glyphs: *text-glyphs
+  - platform: homeassistant
+    entity_id: weather.forecast_home
+    id: temperature_unit
+    attribute: temperature_unit
 
-#   - file:
-#       type: gfonts
-#       family: Roboto+Mono
-#       weight: thin
-#     id: roboto_thin_32
-#     size: 32
-#     glyphs: *text-glyphs
+  - platform: homeassistant
+    entity_id: weather.forecast_home
+    id: pressure_unit
+    attribute: pressure_unit
 
-#   - file:
-#       type: gfonts
-#       family: Roboto+Mono
-#       weight: thin
-#     id: roboto_thin_24
-#     size: 24
-#     glyphs: *text-glyphs
+  - platform: homeassistant
+    entity_id: weather.forecast_home
+    id: wind_speed_unit
+    attribute: wind_speed_unit
 
-#   - file:
-#       type: gfonts
-#       family: Roboto+Mono
-#       weight: thin
-#     id: roboto_thin_16
-#     size: 16
-#     glyphs: *text-glyphs
+  - platform: homeassistant
+    entity_id: sensor.weather_forecast_1d
+    id: forecast_1d_weather
 
-# time:
-#   - platform: sntp
-#     id: esptime
-#     on_time: 
-#       - seconds: /1
-#         then:
-#           - lambda: |-
-#               if (id(external_media_player).state != media_player::MEDIA_PLAYER_STATE_PLAYING) {
-#                 id(tft_display).update();
-#               }
-#       - seconds: /15
-#         then:
-#           - lambda: |-
-#               if (id(external_media_player).state == media_player::MEDIA_PLAYER_STATE_PLAYING) {
-#                 ESP_LOGI("display", "Updating TFT display (every 15 seconds while playing)");
-#                 id(tft_display).update();
-#               }
+  - platform: homeassistant
+    entity_id: sensor.weather_forecast_2d
+    id: forecast_2d_weather
 
-# touchscreen:
-#   platform: xpt2046
-#   cs_pin: GPIO2
-#   interrupt_pin: GPIO21
-#   update_interval: 50ms
-#   threshold: 400
-#   calibration:
-#     x_min: 280
-#     x_max: 3860
-#     y_min: 340
-#     y_max: 3860
-#   transform:
-#     swap_xy: false   
-#     mirror_y: true
-#     # mirror_y: true
-#   on_touch: 
-#     - lambda: |-
-#         for (auto touch: touches)  {
-#             if (touch.state <= 2) {
-#                 ESP_LOGI("Touch points:", "id=%d x=%d, y=%d", touch.id, touch.x, touch.y);
-#             }
-#         }
+  - platform: homeassistant
+    entity_id: sensor.weather_forecast_3d
+    id: forecast_3d_weather
 
-# light:
-#   - platform: esp32_rmt_led_strip
-#     id: rgb_front_led
-#     rgb_order: GRB
-#     pin: GPIO33
-#     num_leds: 1
-#     # rmt_channel: 1
-#     chipset: ws2812
-#     name: "RGB led"
-
-# binary_sensor:
-#   - platform: touchscreen
-#     id: touch_prev_track
-#     x_min: 0
-#     x_max: 80
-#     y_min: 220
-#     y_max: 300
-#     on_press:
-#     - logger.log: "Prev Track touched"
-#     - homeassistant.service:
-#         service: script.mopidy_prev_track
-
-#   - platform: touchscreen
-#     id: touch_play_pause
-#     x_min: 80
-#     x_max: 160
-#     y_min: 220
-#     y_max: 300
-#     on_press:
-#     - logger.log: "Play Pause touched"
-#     - homeassistant.service:
-#         service: script.mopidy_play_pause
-
-#   - platform: touchscreen
-#     id: touch_next_track
-#     x_min: 160
-#     x_max: 240
-#     y_min: 220
-#     y_max: 300
-#     on_press:
-#     - logger.log: "Next Track touched"
-#     - homeassistant.service:
-#         service: script.mopidy_next_track
-
-#   - platform: touchscreen
-#     id: touch_volume_minus
-#     x_min: 0
-#     x_max: 40
-#     y_min: 0
-#     y_max: 40
-#     on_press:
-#     - logger.log: "Volume Down touched"
-#     - homeassistant.service:
-#         service: script.mopidy_volume_down
-
-#   - platform: touchscreen
-#     id: touch_volume_plus
-#     x_min: 200
-#     x_max: 240
-#     y_min: 0
-#     y_max: 40
-#     on_press:
-#     - logger.log: "Volume Up touched"
-#     - homeassistant.service:
-#         service: script.mopidy_volume_up
-
-# sensor:
-#   - platform: homeassistant
-#     entity_id: media_player.mopidy
-#     id: mopidy_volume
-#     attribute: volume_level
-
-#   - platform: homeassistant
-#     entity_id: media_player.mopidy
-#     id: mopidy_media_position
-#     attribute: media_position
-
-#   - platform: homeassistant
-#     entity_id: media_player.mopidy
-#     id: mopidy_media_duration
-#     attribute: media_duration
-
-# text_sensor:
-#   - platform: homeassistant
-#     entity_id: media_player.mopidy
-#     id: mopidy_state
-
-#   - platform: homeassistant
-#     entity_id: media_player.mopidy
-#     id: mopidy_title
-#     attribute: media_title
-
-#   - platform: homeassistant
-#     entity_id: media_player.mopidy
-#     id: mopidy_artist
-#     attribute: media_artist
-
-#   - platform: homeassistant
-#     entity_id: media_player.mopidy
-#     id: mopidy_picture
-#     attribute: entity_picture
-
-#   - platform: homeassistant
-#     entity_id: media_player.mopidy
-#     id: mopidy_queue_position
-#     attribute: queue_position
-
-#   - platform: homeassistant
-#     entity_id: media_player.mopidy
-#     id: mopidy_queue_size
-#     attribute: queue_size
-
-# display:
-#   - platform: ili9xxx
-#     id: tft_display
-#     model: ILI9341
-#     dimensions:
-#       width: 240
-#       height: 320
-#       offset_height: 0
-#       offset_width: 0
-#     invert_colors: false
-#     dc_pin: GPIO04
-#     reset_pin: GPIO32
-#     cs_pin: GPIO05
-#     rotation: 180
-#     update_interval: 60s
-#     lambda: |-
-#       it.fill(id(Color::BLACK));
-
-#       /*
-#       ESP_LOGI("display", "mopidy_state: %s", id(mopidy_state).state.c_str());
-#       ESP_LOGI("display", "mopidy_artist: %s", id(mopidy_artist).state.c_str());
-#       ESP_LOGI("display", "mopidy_title: %s", id(mopidy_title).state.c_str());
-#       ESP_LOGI("display", "mopidy_picture: %s", id(mopidy_picture).state.c_str());
-#       ESP_LOGI("display", "mopidy_volume: %2.1f", id(mopidy_volume).state);
-#       ESP_LOGI("display", "queue: %s of %s", id(mopidy_queue_position).state.c_str(), id(mopidy_queue_size).state.c_str());
-#       ESP_LOGI("display", "position: %2.1f of %2.1f", id(mopidy_media_position).state, id(mopidy_media_duration).state); 
-#       */
-
-#       // volume indicator
-#       if (id(mopidy_volume).has_state()) {
-#         it.line(40, 20, 240 - 40, 20, id(muted_text_color));
-#         it.image(0, 0, id(mdi_volume_minus), id(muted_text_color));
-#         it.image(240 - 40, 0, id(mdi_volume_plus), id(muted_text_color));
-        
-#         int position = (240 - 40 - 40) * id(mopidy_volume).state;
-#         it.filled_circle(40 + position, 20, 5, id(greenish_color));
-#       }
-      
-#       // artist and title
-#       if (id(mopidy_title).has_state())
-#         it.printf(120, 180 - 20, id(roboto_thin_16), id(greenish_color), TextAlign::BOTTOM_CENTER, "%s", id(mopidy_title).state.c_str());
-#       if (id(mopidy_artist).has_state())
-#         it.printf(120, 180 - 20, id(roboto_thin_32), id(sun_color), TextAlign::TOP_CENTER, "%s", id(mopidy_artist).state.c_str());
-
-#       // control buttons
-#       auto image_baseline_x = 120 - 40;  
-#       auto image_baseline_y = 320 - 100;  
-
-#       if (id(mopidy_state).has_state()) {
-#         if (id(mopidy_state).state == "playing") {
-#           it.image(image_baseline_x, image_baseline_y, id(mdi_pause), id(aux_text_color));
-#         } else {
-#           it.image(image_baseline_x, image_baseline_y, id(mdi_play), id(aux_text_color));
-#         }
-
-#         it.image(image_baseline_x - 80, image_baseline_y, id(mdi_prev), id(aux_text_color));
-#         it.image(image_baseline_x + 80, image_baseline_y, id(mdi_next), id(aux_text_color));
-#       }
-
-#       // playlist position
-#       if (id(mopidy_queue_position).has_state()) {
-#         auto queue_position = atoi(id(mopidy_queue_position).state.c_str());
-#         auto queue_size = atoi(id(mopidy_queue_size).state.c_str());
-#         // it.printf(120, 320, id(roboto_thin_16), id(water_color), TextAlign::BOTTOM_CENTER, "queue: %d of %s", queue_position + 1, id(mopidy_queue_size).state.c_str());
-#         if (queue_size == 1) {
-#           it.filled_circle(120, 320 - 10, 3, id(greenish_color));
-#         } else {
-#           auto distance = (240 - 20) / (queue_size - 1);
-#           for (auto i = 0; i < queue_size; i++) {
-#             it.filled_circle(10 + distance * i, 320 - 10, 3, i == queue_position ? id(greenish_color) : id(muted_text_color));
-#           }
-#         }
-#       }
-
-#       // media indicator
-#       if (id(mopidy_media_duration).has_state()) {
-#         auto baseline_y = 320 - 80 - 20; 
-#         it.line(10, baseline_y, 240 - 10, baseline_y, id(muted_text_color));
-        
-#         float media_position =  id(mopidy_media_position).state / id(mopidy_media_duration).state;
-#         int position = (240 - 10 - 10) * media_position;
-#         it.filled_circle(10 + position, baseline_y, 3, id(greenish_color));
-#       }
-
-#       // color
-#       auto colorFunc = [](int seq) -> int {
-#         seq = seq % 0xff;
-#         if (seq < 85)
-#           return seq * 3;
-#         else if (seq < 170)
-#           return 255 - (seq - 85) * 3;
-#         return 0;
-#       };
-#       auto seq = id(esptime).now().timestamp;
-#       auto r = colorFunc(seq), g = colorFunc(seq + 85), b = colorFunc(seq + 170);
-#       auto textColor = Color(r, g, b);
-#       //ESP_LOGI("display", "color: seq=%d, r=%d, g=%d, b=%d", seq, r, g, b);
-
-#       // clock
-#       auto hours = id(esptime).now().hour;
-#       auto minutes = id(esptime).now().minute;
-#       auto seconds = id(esptime).now().second;
-
-#       if (seconds % 2 == 0)
-#         it.printf(120, 40 - 20, id(roboto_thin), textColor, TextAlign::TOP_CENTER, "%s", ".");
-#       it.printf(110, 40 - 20, id(roboto_thick), textColor, TextAlign::TOP_RIGHT, "%d", hours);
-#       it.printf(130, 40 - 20, id(roboto_thick), textColor, TextAlign::TOP_LEFT, "%02d", minutes);
+  - platform: homeassistant
+    entity_id: sensor.weather_forecast_4d
+    id: forecast_4d_weather
 
 # ===== Packages =====
 packages:
@@ -652,8 +219,12 @@ packages:
     ref: main
     files:
       - firmware/esphome/packages/audio.yaml
-      - firmware/esphome/packages/sendspin.yaml
-      - firmware/esphome/packages/sendspin-addon-esp32.yaml
+        
+      # Option A: Sendspin media player
+      # - firmware/esphome/packages/sendspin.yaml
+      # - firmware/esphome/packages/sendspin-addon-esp32.yaml
+      # Option B: Legacy media player
+      # - firmware/esphome/packages/media-player.yaml
 
       - firmware/esphome/packages/light.yaml
       - firmware/esphome/packages/monitoring.yaml
@@ -661,3 +232,19 @@ packages:
 
   ir: !include packages/logitech-purefi-screen--ir.yaml
   display: !include packages/logitech-purefi-screen--display.yaml
+  sendspin: !include packages/sendspin-screen-only.yaml
+
+switch:
+  - platform: gpio
+    pin:
+      number: $touch_cs_pin
+      inverted: false
+    name: "TOUCH CS"
+    restore_mode: ALWAYS_OFF
+
+  - platform: gpio
+    pin:
+      number: $sdcard_cs_pin
+      inverted: false
+    name: "SDCARD CS"
+    restore_mode: ALWAYS_OFF
