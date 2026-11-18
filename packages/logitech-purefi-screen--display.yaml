@@ -212,6 +212,11 @@ interval:
             lv_label_set_text(id(clock_separator_label), " ");
           }
 
+          // Update small clock on the sendspin page info line
+          char info_clock_buf[8];
+          snprintf(info_clock_buf, sizeof(info_clock_buf), "%02d:%02d", now.hour, now.minute);
+          lv_label_set_text(id(info_clock_label), info_clock_buf);
+
           // Rainbow color cycling based on current timestamp
           auto colorFunc = [](int seq) -> int {
             seq = seq % 0xff;
@@ -270,15 +275,21 @@ interval:
             if (it != weather_icon_map.end()) {
               lv_label_set_text(id(weather_icon_label), it->second.first.c_str());
               lv_obj_set_style_text_color(id(weather_icon_label), lv_color_hex(it->second.second), 0);
+              // Also update the small info line icon on the sendspin page
+              lv_label_set_text(id(info_weather_icon_label), it->second.first.c_str());
+              lv_obj_set_style_text_color(id(info_weather_icon_label), lv_color_hex(it->second.second), 0);
             }
           }
           if (id(temperature).has_state()) {
             char temp_buf[8];
             snprintf(temp_buf, sizeof(temp_buf), "%d", int(id(temperature).state));
             lv_label_set_text(id(temperature_label), temp_buf);
+            // Also update the small info line temperature on the sendspin page
+            lv_label_set_text(id(info_temperature_label), temp_buf);
           }
           if (id(temperature_unit).has_state()) {
             lv_label_set_text(id(temp_unit_label), id(temperature_unit).get_state().c_str());
+            lv_label_set_text(id(info_temp_unit_label), id(temperature_unit).get_state().c_str());
           }
 
           // --- 4-day forecast update ---
@@ -462,7 +473,7 @@ font:
       family: ${font_family}
       weight: 300
     id: font_medium
-    size: 16
+    size: 32
     glyphsets:
       - ${font_glyphsets}
 
@@ -516,7 +527,7 @@ font:
   # Weather icons font (medium, for forecast)
   - file: https://github.com/Templarian/MaterialDesign-Webfont/raw/refs/heads/master/fonts/materialdesignicons-webfont.ttf
     id: font_mdi_medium
-    size: 24
+    size: 40
     glyphs: [
       "\U000F0590", # cloudy
       "\U000F0F2F", # cloudy-alert
@@ -568,7 +579,7 @@ generic_image:
     id: sendspin_cover_art
     format: JPEG
     type: rgb565
-    resize: 200x200
+    resize: 240x240
     source: ALBUM
     on_image_display:
       - if:
@@ -604,7 +615,7 @@ generic_image:
     id: sendspin_artist_picture
     format: JPEG
     type: rgb565
-    resize: 200x200
+    resize: 240x240
     source: ARTIST
     on_image_display:
       - lvgl.image.update: 
@@ -871,7 +882,7 @@ lvgl:
             id: forecast_1d_date_label
             align: BOTTOM_MID
             x: -90
-            y: -75
+            y: -100
             text_color: 0xAAAAAA
             text_font: font_small
             text: ""
@@ -904,7 +915,7 @@ lvgl:
             id: forecast_2d_date_label
             align: BOTTOM_MID
             x: -30
-            y: -75
+            y: -100
             text_color: 0xAAAAAA
             text_font: font_small
             text: ""
@@ -937,7 +948,7 @@ lvgl:
             id: forecast_3d_date_label
             align: BOTTOM_MID
             x: 30
-            y: -75
+            y: -100
             text_color: 0xAAAAAA
             text_font: font_small
             text: ""
@@ -970,7 +981,7 @@ lvgl:
             id: forecast_4d_date_label
             align: BOTTOM_MID
             x: 90
-            y: -75
+            y: -100
             text_color: 0xAAAAAA
             text_font: font_small
             text: ""
@@ -1012,8 +1023,8 @@ lvgl:
             id: touch_capture_idle
             x: 0
             y: 0
-            width: 320
-            height: 240
+            width: 240
+            height: 320
             bg_opa: TRANSP
             border_opa: TRANSP
             clickable: true
@@ -1048,15 +1059,15 @@ lvgl:
             id: album_art_widget
             align: TOP_MID
             src: sendspin_cover_art
-            height: 200
-            width: 200
+            height: 240
+            width: 240
             antialias: true  # Better quality when scaling
             clickable: false
         - obj:
             id: track_info_container
             x: 0
-            y: 200
-            width: 320
+            y: 240
+            width: 240
             height: 40
             bg_color: 0x000000
             border_width: 0
@@ -1072,12 +1083,56 @@ lvgl:
                   text: ""
                   width: 300  # Slightly less than container width for padding
                   long_mode: SCROLL_CIRCULAR  # Continuously scroll text that doesn't fit
+        # Info line: small clock + weather icon + temperature (single line)
+        - obj:
+            id: info_line_container
+            x: 0
+            y: 280
+            width: 240
+            height: 40
+            bg_color: 0x000000
+            border_width: 0
+            pad_all: 0
+            scrollbar_mode: "OFF"  # Hide scrollbars
+            clickable: false
+            widgets:
+              # Small clock aligned left
+              - label:
+                  id: info_clock_label
+                  align: LEFT_MID
+                  x: 10
+                  text_color: 0xFFFFFF
+                  text_font: font_medium
+                  text: "--:--"
+              # Current weather icon between clock and temperature
+              - label:
+                  id: info_weather_icon_label
+                  align: CENTER
+                  text_color: 0xFFFFFF
+                  text_font: font_mdi_medium
+                  text: ""
+              # Current temperature aligned right
+              - label:
+                  id: info_temperature_label
+                  align: RIGHT_MID
+                  x: -40
+                  text_color: 0xFFFFFF
+                  text_font: font_medium
+                  text: ""
+              # Temperature unit
+              - label:
+                  id: info_temp_unit_label
+                  align: RIGHT_MID
+                  x: -10
+                  text_color: 0xFFFFFF
+                  text_font: font_medium
+                  text: ""
         # Track progress time (left of album art)
         - label:
             id: track_progress_label
             x: 0
             y: 178
-            width: 60
+            width: 40
             height: 20
             text_align: CENTER
             text_color: 0xAAAAAA
@@ -1086,9 +1141,9 @@ lvgl:
         # Track duration time (right of album art)
         - label:
             id: track_duration_label
-            x: 260
+            x: 200
             y: 178
-            width: 60
+            width: 40
             height: 20
             text_align: CENTER
             text_color: 0xAAAAAA
@@ -1098,8 +1153,8 @@ lvgl:
             id: touch_capture
             x: 0
             y: 0
-            width: 320
-            height: 240
+            width: 240
+            height: 320
             bg_opa: TRANSP
             border_opa: TRANSP
             clickable: true
@@ -1142,8 +1197,8 @@ lvgl:
             id: touch_capture_artist
             x: 0
             y: 0
-            width: 320
-            height: 240
+            width: 240
+            height: 320
             bg_opa: TRANSP
             border_opa: TRANSP
             clickable: true
