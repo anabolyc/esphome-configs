@@ -55,8 +55,8 @@ There are equivalent VS Code tasks in [`.vscode/tasks.json`](.vscode/tasks.json)
 
 ## Knob remote — `crowpanel-dhr55146d-sendspin-remote.yaml`
 
-<!-- TODO: photo of the finished remote, front on, showing the playback screen -->
-![The knob remote showing cover art](docs/images/knob-remote.jpg)
+<img width="2000" height="1500" alt="image" src="https://github.com/user-attachments/assets/30c2e5bb-73b9-4c29-a05e-aa812af4eda3" />
+
 
 A [Sendspin](https://github.com/music-assistant/sendspin) client and remote
 control for [Music Assistant](https://www.music-assistant.io/), built on the
@@ -127,10 +127,9 @@ ends, so swiping back from the player opens the last screen directly.
 The player counts as **one** stop, not two — it shows the cover art while the
 group is playing and the clock otherwise.
 
-<!-- TODO: screenshots of the browse list, the lights screen and the clock -->
 | Browse list | Lights | Clock |
 | --- | --- | --- |
-| ![Browse list](docs/images/screen-browse.jpg) | ![Lights screen](docs/images/screen-lights.jpg) | ![Clock](docs/images/screen-clock.jpg) |
+| <img width="2000" height="1500" alt="image" src="https://github.com/user-attachments/assets/72885e96-7a7f-4aa4-a484-c704ffebe5ce" /> | <img width="2000" height="1500" alt="image" src="https://github.com/user-attachments/assets/f2af7805-8696-4de1-bfb2-b31099f319ea" /> | <img width="2000" height="1500" alt="image" src="https://github.com/user-attachments/assets/cf599770-f08d-47d6-978a-ca06b3391981" /> |
 
 ### Not implemented
 
@@ -174,8 +173,7 @@ Thresholds are all substitutions at the top of `touch.yaml`.
 
 ## Logitech Pure-Fi dock — `logitech-purefi-screen.yaml`
 
-<!-- TODO: photo of the dock, ideally with the screen lit -->
-![The converted Logitech dock](docs/images/purefi-dock.jpg)
+<img width="2000" height="1500" alt="image" src="https://github.com/user-attachments/assets/b45e92d6-98bd-4caa-8ae7-8c6a776e5935" />
 
 A Logitech Pure-Fi speaker dock with its electronics replaced by an ESP32,
 turning it into a network speaker with a local display. It pulls the audio and
@@ -201,8 +199,7 @@ than using them — so neither is wired up as a component. `batt_sense_pin`
 
 ## LED matrix clocks — `led-matrix-clock-01.yaml`, `led-matrix-clock-02.yaml`
 
-<!-- TODO: photo of a clock, showing the time and the weather icon -->
-![LED matrix clock](docs/images/led-matrix-clock.jpg)
+<img width="1092" height="749" alt="image" src="https://github.com/user-attachments/assets/50a950b4-62fd-4512-8d99-dbbb208b8fe4" />
 
 An ESP8266 driving four chained MAX7219 8×8 modules — a 32×8 display. The two
 files are the same device twice, differing only in name, night-mode hours and
