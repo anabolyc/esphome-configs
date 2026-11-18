@@ -1,0 +1,600 @@
+# ============================================================
+# Lights screen: colour, brightness and on/off for a group of lights
+# ============================================================
+# Reached by holding the knob, after the lists (browse.yaml).
+# - Knob turn: previous / next colour, applied right away
+#   (which also turns the lights on)
+# - Knob press: lights on / off
+# - Swipe up / down: brighter / dimmer, one step per swipe
+#   (bound in packages/crowpanel-dhr55146d/touch-actions.yaml)
+# Dimming is not reachable from the knob itself: upstream it is left or right
+# held down, and a knob has no such gesture. A vertical swipe does it instead,
+# and the hold loop is kept for the button-based remotes.
+# The header shows the on/off state and brightness of lights_state_entity.
+# Dimming stops at ${lights_brightness_min}% instead of turning the lights off.
+# The 4x4 grid holds 16 colours: three whites first, then hues around
+# the colour wheel. Whites are sent as colour temperatures, colours as
+# hue / saturation (the lights support color_temp and hs).
+#
+# Requires:
+#   - packages/crowpanel-dhr55146d/browse.yaml (knob hold cycle,
+#     browse::screens())
+#   - packages/crowpanel-dhr55146d/sendspin-addon-display.yaml (LVGL, fonts)
+#   - packages/crowpanel-dhr55146d/sendspin-addon-knob.yaml (browse_active)
+#   - "Allow the device to perform Home Assistant actions"
+# ============================================================
+
+substitutions:
+  mdi_lightbulb_glyph: "\U000F0335"
+  # Comma-separated light entities controlled together
+  lights_entities: "light.booba, light.mati, light.mama"
+  # One of them, whose on/off state the screen shows and the middle button follows
+  lights_state_entity: light.booba
+  # Brightness change per step, in %: once per vertical swipe, or once per
+  # ${lights_brightness_interval} while a button is held
+  lights_brightness_step: "10"
+  lights_brightness_interval: 400ms
+  # Dimming stops here instead of turning the lights off, in %
+  lights_brightness_min: "5"
+  # How long a step keeps counting from the last one rather than from what
+  # Home Assistant reports, in ms. Long enough that a second swipe carries
+  # on from the first instead of re-reading a brightness that has not
+  # caught up yet, short enough that a change made elsewhere is picked up.
+  lights_brightness_resync: "1500"
+
+font:
+  - file: https://github.com/Templarian/MaterialDesign-Webfont/raw/refs/heads/master/fonts/materialdesignicons-webfont.ttf
+    id: font_lights_glyphs
+    size: 30
+    glyphs: ["${mdi_lightbulb_glyph}"]
+
+esphome:
+  on_boot:
+    - then:
+        - lambda: |-
+            browse::screens().push_back({
+                []() { id(lights_show).execute(); },
+                []() { id(lights_active) = false; },
+            });
+
+globals:
+  - id: lights_active
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+  - id: lights_color
+    type: int
+    restore_value: yes
+    initial_value: '0'
+  # Values for the selected colour: kelvin > 0 for whites, else hue / saturation
+  - id: lights_kelvin
+    type: int
+    restore_value: no
+    initial_value: '0'
+  - id: lights_hue
+    type: int
+    restore_value: no
+    initial_value: '0'
+  - id: lights_saturation
+    type: int
+    restore_value: no
+    initial_value: '0'
+  # Brightness being stepped towards, in %
+  - id: lights_target_brightness
+    type: int
+    restore_value: no
+    initial_value: '0'
+  # When it was last stepped, for the resync window above
+  - id: lights_brightness_set_ms
+    type: uint32_t
+    restore_value: no
+    initial_value: '0'
+
+sensor:
+  # 0-255 while on; no value while off
+  - platform: homeassistant
+    id: lights_brightness
+    entity_id: ${lights_state_entity}
+    attribute: brightness
+    internal: true
+    on_value:
+      - script.execute: lights_render
+
+binary_sensor:
+  - platform: homeassistant
+    id: lights_state
+    entity_id: ${lights_state_entity}
+    on_state:
+      - script.execute: lights_render
+
+  - id: !extend left_button_sensor
+    on_multi_click:
+      - timing:
+          - ON for at most 0.4s
+          - OFF for at least 0.05s
+        then:
+          - if:
+              condition:
+                lambda: return id(lights_active);
+              then:
+                - script.execute:
+                    id: lights_move
+                    delta: -1
+      - timing:
+          - ON for at least 0.5s
+        then:
+          - if:
+              condition:
+                lambda: return id(lights_active);
+              then:
+                - script.execute:
+                    id: lights_brightness_while_held
+                    direction: -1
+
+  - id: !extend right_button_sensor
+    on_multi_click:
+      - timing:
+          - ON for at most 0.4s
+          - OFF for at least 0.05s
+        then:
+          - if:
+              condition:
+                lambda: return id(lights_active);
+              then:
+                - script.execute:
+                    id: lights_move
+                    delta: 1
+      - timing:
+          - ON for at least 0.5s
+        then:
+          - if:
+              condition:
+                lambda: return id(lights_active);
+              then:
+                - script.execute:
+                    id: lights_brightness_while_held
+                    direction: 1
+
+  - id: !extend middle_button_sensor
+    on_click:
+      - if:
+          condition:
+            lambda: return id(lights_active);
+          then:
+            - script.execute: lights_toggle
+
+script:
+  - id: lights_show
+    then:
+      - globals.set:
+          id: lights_active
+          value: 'true'
+      - script.execute: lights_render
+      - lvgl.page.show: lights_page
+
+  - id: lights_render
+    then:
+      - lambda: |-
+          lv_obj_t *dots[16] = {id(lights_dot_0), id(lights_dot_1), id(lights_dot_2), id(lights_dot_3), id(lights_dot_4), id(lights_dot_5), id(lights_dot_6), id(lights_dot_7), id(lights_dot_8), id(lights_dot_9), id(lights_dot_10), id(lights_dot_11), id(lights_dot_12), id(lights_dot_13), id(lights_dot_14), id(lights_dot_15)};
+          for (int i = 0; i < 16; i++)
+            lv_obj_set_style_border_width(dots[i], i == id(lights_color) ? 4 : 0, 0);
+          const bool on = id(lights_state).state;
+          if (on)
+            lv_obj_add_state(id(lights_switch), LV_STATE_CHECKED);
+          else
+            lv_obj_remove_state(id(lights_switch), LV_STATE_CHECKED);
+
+          // Brightness only while on (Home Assistant reports none while off)
+          const float brightness = id(lights_brightness).state;
+          if (on && !std::isnan(brightness)) {
+            char text[8];
+            snprintf(text, sizeof(text), "%d%%", (int) roundf(brightness * 100.0f / 255.0f));
+            lv_label_set_text(id(lights_brightness_label), text);
+            lv_obj_remove_flag(id(lights_brightness_label), LV_OBJ_FLAG_HIDDEN);
+          } else {
+            lv_obj_add_flag(id(lights_brightness_label), LV_OBJ_FLAG_HIDDEN);
+          }
+
+  - id: lights_move
+    parameters:
+      delta: int
+    then:
+      - lambda: |-
+          id(lights_color) = (id(lights_color) + delta + 16) % 16;
+      - script.execute: lights_render
+      - script.execute: lights_apply_color
+
+  # Send the selected colour to the lights (turns them on)
+  - id: lights_apply_color
+    then:
+      - lambda: |-
+          struct Colour { const char *name; int kelvin, hue, saturation; };
+          static const Colour COLOURS[16] = {
+              {"Warm white", 2700, 0, 0},
+              {"Neutral white", 4000, 0, 0},
+              {"Cool white", 6500, 0, 0},
+              {"Red", 0, 0, 100},
+              {"Orange", 0, 25, 100},
+              {"Amber", 0, 40, 100},
+              {"Yellow", 0, 55, 100},
+              {"Lime", 0, 90, 100},
+              {"Green", 0, 120, 100},
+              {"Spring green", 0, 150, 100},
+              {"Cyan", 0, 180, 100},
+              {"Sky blue", 0, 200, 100},
+              {"Blue", 0, 230, 100},
+              {"Violet", 0, 270, 100},
+              {"Magenta", 0, 300, 100},
+              {"Pink", 0, 330, 60},
+          };
+          const Colour &c = COLOURS[id(lights_color)];
+          id(lights_kelvin) = c.kelvin;
+          id(lights_hue) = c.hue;
+          id(lights_saturation) = c.saturation;
+          ESP_LOGD("lights", "Colour %s", c.name);
+      - if:
+          condition:
+            lambda: return id(lights_kelvin) > 0;
+          then:
+            - homeassistant.action:
+                action: light.turn_on
+                data:
+                  entity_id: ${lights_entities}
+                  color_temp_kelvin: !lambda return std::to_string(id(lights_kelvin));
+                on_error:
+                  - logger.log:
+                      level: WARN
+                      format: "Home Assistant could not set the lights: %s"
+                      args: [error.c_str()]
+          else:
+            - homeassistant.action:
+                action: light.turn_on
+                data:
+                  entity_id: ${lights_entities}
+                data_template:
+                  hs_color: "{{ [hue | float, saturation | float] }}"
+                variables:
+                  hue: !lambda return std::to_string(id(lights_hue));
+                  saturation: !lambda return std::to_string(id(lights_saturation));
+                on_error:
+                  - logger.log:
+                      level: WARN
+                      format: "Home Assistant could not set the lights: %s"
+                      args: [error.c_str()]
+
+  - id: lights_toggle
+    then:
+      - if:
+          condition:
+            binary_sensor.is_on: lights_state
+          then:
+            - homeassistant.action:
+                action: light.turn_off
+                data:
+                  entity_id: ${lights_entities}
+          else:
+            - homeassistant.action:
+                action: light.turn_on
+                data:
+                  entity_id: ${lights_entities}
+
+  # One brightness step. An absolute target is tracked and set rather than a
+  # relative change, so dimming can stop at the minimum (a relative step to
+  # 0% would turn the lights off).
+  #
+  # Used on its own by a vertical swipe on this screen
+  # (packages/crowpanel-dhr55146d/touch-actions.yaml) and once per interval
+  # by the hold loop below.
+  - id: lights_brightness_step_by
+    parameters:
+      direction: int
+    then:
+      - lambda: |-
+          // Carry on from the last step while they keep coming; otherwise take
+          // Home Assistant's value, which by now reflects anything done
+          // elsewhere. Without the window a second quick swipe would read a
+          // brightness that had not caught up and undo the first.
+          if (millis() - id(lights_brightness_set_ms) > ${lights_brightness_resync}) {
+            const float b = id(lights_brightness).state;
+            id(lights_target_brightness) =
+                id(lights_state).state && !std::isnan(b) ? (int) roundf(b * 100.0f / 255.0f) : 0;
+          }
+          int target = id(lights_target_brightness) + direction * ${lights_brightness_step};
+          id(lights_target_brightness) = std::max(${lights_brightness_min}, std::min(100, target));
+          id(lights_brightness_set_ms) = millis();
+          ESP_LOGD("lights", "Brightness step %+d%% to %d%%", direction * ${lights_brightness_step},
+                   id(lights_target_brightness));
+      - homeassistant.action:
+          action: light.turn_on
+          data:
+            entity_id: ${lights_entities}
+            brightness_pct: !lambda return std::to_string(id(lights_target_brightness));
+
+  # While left / right is held: keep stepping until it is let go
+  - id: lights_brightness_while_held
+    parameters:
+      direction: int
+    mode: restart
+    then:
+      - while:
+          condition:
+            lambda: |-
+              return direction > 0 ? id(right_button_sensor).state : id(left_button_sensor).state;
+          then:
+            - script.execute:
+                id: lights_brightness_step_by
+                direction: !lambda return direction;
+            - delay: ${lights_brightness_interval}
+
+# Round layout: the header is a centred strip, low enough for its corners to
+# clear the glass, and the 4x4 grid of 50px dots is centred on the screen.
+lvgl:
+  pages:
+    - id: lights_page
+      bg_color: 0x000000
+      skip: true
+      scrollbar_mode: "OFF"
+      widgets:
+        # Header: bulb, brightness, on / off indicator
+        - obj:
+            align: TOP_MID
+            y: 34
+            width: 190
+            height: 32
+            bg_opa: TRANSP
+            border_width: 0
+            pad_all: 0
+            scrollable: false
+            clickable: false
+            widgets:
+              - label:
+                  align: LEFT_MID
+                  text_color: 0xFFFFFF
+                  text_font: font_lights_glyphs
+                  text: "${mdi_lightbulb_glyph}"
+              - label:
+                  id: lights_brightness_label
+                  align: CENTER
+                  text_color: 0xFFFFFF
+                  text_font: font_display
+                  text: ""
+                  hidden: true
+              # On / off indicator only; the knob press switches the lights
+              - switch:
+                  id: lights_switch
+                  align: RIGHT_MID
+                  width: 52
+                  height: 28
+                  clickable: false
+                  bg_color: 0x404040
+                  indicator:
+                    checked:
+                      bg_color: 0xFFAA00
+                  knob:
+                    bg_color: 0xFFFFFF
+                    pad_all: -2
+        # 4x4 colour grid; the selected colour gets a white border
+        - obj:
+            id: lights_dot_0    # Warm white
+            x: 62
+            y: 78
+            width: 50
+            height: 50
+            radius: 25
+            bg_color: 0xFFB46B
+            bg_opa: COVER
+            border_color: 0xFFFFFF
+            border_width: 0
+            pad_all: 0
+            scrollable: false
+            clickable: false
+        - obj:
+            id: lights_dot_1    # Neutral white
+            x: 124
+            y: 78
+            width: 50
+            height: 50
+            radius: 25
+            bg_color: 0xFFD9B0
+            bg_opa: COVER
+            border_color: 0xFFFFFF
+            border_width: 0
+            pad_all: 0
+            scrollable: false
+            clickable: false
+        - obj:
+            id: lights_dot_2    # Cool white
+            x: 186
+            y: 78
+            width: 50
+            height: 50
+            radius: 25
+            bg_color: 0xE6EEFF
+            bg_opa: COVER
+            border_color: 0xFFFFFF
+            border_width: 0
+            pad_all: 0
+            scrollable: false
+            clickable: false
+        - obj:
+            id: lights_dot_3    # Red
+            x: 248
+            y: 78
+            width: 50
+            height: 50
+            radius: 25
+            bg_color: 0xFF0000
+            bg_opa: COVER
+            border_color: 0xFFFFFF
+            border_width: 0
+            pad_all: 0
+            scrollable: false
+            clickable: false
+        - obj:
+            id: lights_dot_4    # Orange
+            x: 62
+            y: 140
+            width: 50
+            height: 50
+            radius: 25
+            bg_color: 0xFF6A00
+            bg_opa: COVER
+            border_color: 0xFFFFFF
+            border_width: 0
+            pad_all: 0
+            scrollable: false
+            clickable: false
+        - obj:
+            id: lights_dot_5    # Amber
+            x: 124
+            y: 140
+            width: 50
+            height: 50
+            radius: 25
+            bg_color: 0xFFAA00
+            bg_opa: COVER
+            border_color: 0xFFFFFF
+            border_width: 0
+            pad_all: 0
+            scrollable: false
+            clickable: false
+        - obj:
+            id: lights_dot_6    # Yellow
+            x: 186
+            y: 140
+            width: 50
+            height: 50
+            radius: 25
+            bg_color: 0xFFEA00
+            bg_opa: COVER
+            border_color: 0xFFFFFF
+            border_width: 0
+            pad_all: 0
+            scrollable: false
+            clickable: false
+        - obj:
+            id: lights_dot_7    # Lime
+            x: 248
+            y: 140
+            width: 50
+            height: 50
+            radius: 25
+            bg_color: 0x80FF00
+            bg_opa: COVER
+            border_color: 0xFFFFFF
+            border_width: 0
+            pad_all: 0
+            scrollable: false
+            clickable: false
+        - obj:
+            id: lights_dot_8    # Green
+            x: 62
+            y: 202
+            width: 50
+            height: 50
+            radius: 25
+            bg_color: 0x00FF00
+            bg_opa: COVER
+            border_color: 0xFFFFFF
+            border_width: 0
+            pad_all: 0
+            scrollable: false
+            clickable: false
+        - obj:
+            id: lights_dot_9    # Spring green
+            x: 124
+            y: 202
+            width: 50
+            height: 50
+            radius: 25
+            bg_color: 0x00FF80
+            bg_opa: COVER
+            border_color: 0xFFFFFF
+            border_width: 0
+            pad_all: 0
+            scrollable: false
+            clickable: false
+        - obj:
+            id: lights_dot_10    # Cyan
+            x: 186
+            y: 202
+            width: 50
+            height: 50
+            radius: 25
+            bg_color: 0x00FFFF
+            bg_opa: COVER
+            border_color: 0xFFFFFF
+            border_width: 0
+            pad_all: 0
+            scrollable: false
+            clickable: false
+        - obj:
+            id: lights_dot_11    # Sky blue
+            x: 248
+            y: 202
+            width: 50
+            height: 50
+            radius: 25
+            bg_color: 0x00AAFF
+            bg_opa: COVER
+            border_color: 0xFFFFFF
+            border_width: 0
+            pad_all: 0
+            scrollable: false
+            clickable: false
+        - obj:
+            id: lights_dot_12    # Blue
+            x: 62
+            y: 264
+            width: 50
+            height: 50
+            radius: 25
+            bg_color: 0x0040FF
+            bg_opa: COVER
+            border_color: 0xFFFFFF
+            border_width: 0
+            pad_all: 0
+            scrollable: false
+            clickable: false
+        - obj:
+            id: lights_dot_13    # Violet
+            x: 124
+            y: 264
+            width: 50
+            height: 50
+            radius: 25
+            bg_color: 0x8000FF
+            bg_opa: COVER
+            border_color: 0xFFFFFF
+            border_width: 0
+            pad_all: 0
+            scrollable: false
+            clickable: false
+        - obj:
+            id: lights_dot_14    # Magenta
+            x: 186
+            y: 264
+            width: 50
+            height: 50
+            radius: 25
+            bg_color: 0xFF00FF
+            bg_opa: COVER
+            border_color: 0xFFFFFF
+            border_width: 0
+            pad_all: 0
+            scrollable: false
+            clickable: false
+        - obj:
+            id: lights_dot_15    # Pink
+            x: 248
+            y: 264
+            width: 50
+            height: 50
+            radius: 25
+            bg_color: 0xFF66B3
+            bg_opa: COVER
+            border_color: 0xFFFFFF
+            border_width: 0
+            pad_all: 0
+            scrollable: false
+            clickable: false

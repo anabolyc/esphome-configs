@@ -1,0 +1,121 @@
+# ============================================================
+# What the touch gestures do
+# ============================================================
+# Behaviour for the gestures that packages/crowpanel-dhr55146d/touch.yaml
+# recognises. Split from that package so the hardware and the classifier
+# stay independent of what any gesture is bound to, the same way
+# input-knob.yaml and sendspin-addon-knob.yaml are split.
+#
+# Horizontal - move between screens:
+#   - Swipe left  -> the next stop in the cycle
+#   - Swipe right -> the previous stop
+#
+# The cycle is the one the knob hold already walks: the player, then every
+# list (somafm-stations.yaml, ambient-scenes.yaml), then every other screen
+# (lights.yaml), then the player again. Both inputs go through browse_step,
+# so there is one definition of the order. The knob hold only ever steps
+# forward; a swipe can go either way and wraps at both ends, so swiping
+# right from the player opens the last screen directly.
+#
+# The player counts as one stop, not two: browse_step leaves it to
+# ui_show_home, which shows the playback page while the group is playing
+# and the clock otherwise.
+#
+# Vertical - turn the thing on the screen up or down:
+#   - On the lights screen: brightness, one ${lights_brightness_step}%
+#     step per swipe, through lights_brightness_step_by. This is what a
+#     held left or right button does on the button remotes, which a knob
+#     cannot do.
+#   - Anywhere else: playback volume, like a knob turn on the player.
+#     Unlike the knob it also works while a list is open, where turning
+#     moves the selection instead.
+#
+# Both are an if / else on one gesture rather than two guarded handlers in
+# two packages, so only one of them can ever run and the precedence is
+# visible in one place.
+#
+# Direction follows the usual conventions - content moves the way the
+# finger does, so swiping left brings in the next screen from the right,
+# and up means more. Swap the sensor ids to reverse either axis.
+#
+# Every gesture, tap included, also restarts browse_idle_timer, so a
+# secondary screen only goes back to the player after real inactivity.
+#
+# Not wired up yet:
+#   - Tap does nothing of its own. It still counts as activity, and shows
+#     up in "Last Touch Gesture".
+#
+# Requires:
+#   - packages/crowpanel-dhr55146d/touch.yaml (the gesture sensors)
+#   - packages/crowpanel-dhr55146d/browse.yaml (browse_step)
+#   - packages/crowpanel-dhr55146d/lights.yaml (lights_active,
+#     lights_brightness_step_by)
+#   - packages/crowpanel-dhr55146d/sendspin-addon-display.yaml
+#     (sendspin_group_media_player, volume_overlay_show)
+# ============================================================
+
+binary_sensor:
+  - id: !extend touch_swipe_left_sensor
+    on_press:
+      - script.execute: browse_idle_timer
+      # Same guard as the knob hold in browse.yaml: every list acts through
+      # Home Assistant, so there is no point opening one without WiFi
+      - if:
+          condition:
+            or:
+              - lambda: return id(browse_active);
+              - wifi.connected:
+          then:
+            - script.execute:
+                id: browse_step
+                delta: 1
+          else:
+            - logger.log: "Swipe left ignored: not connected yet"
+
+  - id: !extend touch_swipe_right_sensor
+    on_press:
+      - script.execute: browse_idle_timer
+      - if:
+          condition:
+            or:
+              - lambda: return id(browse_active);
+              - wifi.connected:
+          then:
+            - script.execute:
+                id: browse_step
+                delta: -1
+          else:
+            - logger.log: "Swipe right ignored: not connected yet"
+
+  - id: !extend touch_swipe_up_sensor
+    on_press:
+      - script.execute: browse_idle_timer
+      - if:
+          condition:
+            lambda: return id(lights_active);
+          then:
+            - script.execute:
+                id: lights_brightness_step_by
+                direction: 1
+          else:
+            - media_player.volume_up: sendspin_group_media_player
+            - script.execute: volume_overlay_show
+
+  - id: !extend touch_swipe_down_sensor
+    on_press:
+      - script.execute: browse_idle_timer
+      - if:
+          condition:
+            lambda: return id(lights_active);
+          then:
+            - script.execute:
+                id: lights_brightness_step_by
+                direction: -1
+          else:
+            - media_player.volume_down: sendspin_group_media_player
+            - script.execute: volume_overlay_show
+
+  # No action of its own yet, but a tap is still someone using the thing
+  - id: !extend touch_tap_sensor
+    on_press:
+      - script.execute: browse_idle_timer

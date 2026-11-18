@@ -5,3 +5,7 @@
 .esphome-cache/
 /secrets.yaml
 /.secrets
+private/
+
+# Local Python environment
+.venv/

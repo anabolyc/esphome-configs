@@ -1,0 +1,91 @@
+# ============================================================
+# Backlight off after a period without knob activity
+# ============================================================
+# The knob equivalent of packages/sleep.yaml upstream, minus deep sleep.
+#
+# Deep sleep is left out on purpose: on the ESP32-S3 only GPIO0-21 are RTC
+# pins, and every knob pin on this board (GPIO41 press, GPIO42/45 phases) is
+# outside that range, so none of them can wake the chip from deep sleep. The
+# touch controller's INT line is GPIO5, which could - something for when the
+# touch panel is wired up. The board is mains powered over USB-C anyway, so
+# only the backlight is worth switching off.
+#
+# - Off by default: this board is mains powered over USB-C and meant to stay
+#   lit, so "Display Sleep Enabled" starts OFF and the backlight never times
+#   out until it is switched on in Home Assistant.
+# - Once enabled: backlight off after ${display_off_after} without knob
+#   activity; the device stays connected. Any turn or press brings it back,
+#   and the action runs as usual.
+#
+# Requires:
+#   - packages/crowpanel-dhr55146d/input-knob.yaml (button binary sensors)
+#   - packages/crowpanel-dhr55146d/sendspin-addon-display.yaml
+#     (display_power_switch)
+# ============================================================
+
+# Override in the device config substitutions
+substitutions:
+  display_off_after: 60s
+
+esphome:
+  on_boot:
+    - priority: -100
+      then:
+        - script.execute: restart_power_timers
+
+switch:
+  - platform: template
+    id: display_sleep_enabled
+    name: "Display Sleep Enabled"
+    icon: mdi:monitor-off
+    entity_category: config
+    optimistic: true
+    # Always-on device: opt in to the backlight timeout, don't opt out
+    restore_mode: RESTORE_DEFAULT_OFF
+    on_turn_on:
+      - script.execute: display_timer
+    on_turn_off:
+      - script.stop: display_timer
+
+script:
+  # Called on boot and on every knob turn or press
+  - id: restart_power_timers
+    then:
+      - if:
+          condition:
+            switch.is_off: display_power_switch
+          then:
+            - switch.turn_on: display_power_switch
+      - if:
+          condition:
+            switch.is_on: display_sleep_enabled
+          then:
+            - script.execute: display_timer
+          else:
+            - script.stop: display_timer
+
+  - id: display_timer
+    mode: restart
+    then:
+      - delay: ${display_off_after}
+      - if:
+          condition:
+            switch.is_on: display_sleep_enabled
+          then:
+            - logger.log: "No knob activity for ${display_off_after}, turning the display off"
+            - switch.turn_off: display_power_switch
+
+# Any knob activity turns the display on and restarts the timer
+binary_sensor:
+  - id: !extend left_button_sensor
+    on_press:
+      - script.execute: restart_power_timers
+  - id: !extend middle_button_sensor
+    on_press:
+      - script.execute: restart_power_timers
+  - id: !extend right_button_sensor
+    on_press:
+      - script.execute: restart_power_timers
+  - id: !extend side_button_sensor
+    on_press:
+      - script.execute: restart_power_timers

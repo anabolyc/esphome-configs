@@ -1,0 +1,71 @@
+# ============================================================
+# BBC shows: a list for the browse page (browse.yaml)
+# ============================================================
+# Static list, from the radio favourites in Music Assistant. The targets
+# are Music Assistant's own library URIs rather than stream URLs, so Music
+# Assistant resolves the stream itself and these keep working when the BBC
+# moves its endpoints around.
+#
+# Artwork is BBC show images, downloaded and scaled down at compile time.
+# They are 16:9 rather than square like the SomaFM logos, and resize keeps
+# the aspect ratio, so each one ends up 36x20 inside the same 36px slot.
+#
+# Requires:
+#   - packages/crowpanel-dhr55146d/browse.yaml
+#   - sendspin_resume_entity to be a Music Assistant player, for the
+#     library:// URIs to mean anything
+# ============================================================
+
+substitutions:
+  bbc_icon_size: 36x36
+
+image:
+  - platform: file
+    id: bbc_fabio_grooverider
+    file: https://ichef.bbci.co.uk/images/ic/640x360/p01lcrfl.jpg
+    resize: ${bbc_icon_size}
+    type: RGB565
+  - platform: file
+    id: bbc_annie_nightingale
+    file: https://ichef.bbci.co.uk/images/ic/640x360/p0dg2pcn.jpg
+    resize: ${bbc_icon_size}
+    type: RGB565
+  - platform: file
+    id: bbc_essential_mix
+    file: https://ichef.bbci.co.uk/images/ic/640x360/p0bvp6bh.jpg
+    resize: ${bbc_icon_size}
+    type: RGB565
+  - platform: file
+    id: bbc_mary_anne_hobbs
+    file: https://ichef.bbci.co.uk/images/ic/896x504/p01lccnb.jpg
+    resize: ${bbc_icon_size}
+    type: RGB565
+  - platform: file
+    id: bbc_benji_b
+    file: https://ichef.bbci.co.uk/images/ic/640x360/p0jj3vd5.jpg
+    resize: ${bbc_icon_size}
+    type: RGB565
+  - platform: file
+    id: bbc_crissy_criss
+    # 640x360 rather than the 480xn you gave me: that recipe returns a
+    # portrait 480x676, which would have scaled to a 25x36 icon next to the
+    # other five at 36x20. Same image, BBC's 16:9 crop of it.
+    file: https://ichef.bbci.co.uk/images/ic/640x360/p00vzmys.jpg
+    resize: ${bbc_icon_size}
+    type: RGB565
+
+esphome:
+  on_boot:
+    - then:
+        - lambda: |-
+            browse::List list{"BBC Radio", browse::Action::PLAY_MEDIA};
+            // In the order they are favourited in Music Assistant
+            list.items = {
+                {"Fabio and Grooverider", "library://radio/6", id(bbc_fabio_grooverider)},
+                {"Annie Nightingale", "library://radio/7", id(bbc_annie_nightingale)},
+                {"Essential Mix", "library://radio/8", id(bbc_essential_mix)},
+                {"Mary Anne Hobbs", "library://radio/9", id(bbc_mary_anne_hobbs)},
+                {"Benji B", "library://radio/10", id(bbc_benji_b)},
+                {"Crissy Criss", "library://radio/11", id(bbc_crissy_criss)},
+            };
+            browse::lists().push_back(std::move(list));

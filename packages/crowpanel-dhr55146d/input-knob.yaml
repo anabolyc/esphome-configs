@@ -1,0 +1,133 @@
+# ============================================================
+# CrowPanel rotary knob as the remote's four buttons
+# ============================================================
+# The Radio Box remote has four push buttons; this board has one knob
+# (quadrature encoder + push switch) and a touch panel. Touch is not used
+# yet, so the knob stands in for all four buttons:
+#
+#   turn anticlockwise  -> left button  (one short pulse per detent)
+#   turn clockwise      -> right button (one short pulse per detent)
+#   press               -> middle button (the real GPIO, short clicks only)
+#   press and hold      -> side button  (one pulse after ${knob_hold_time})
+#
+# Left and right are template binary sensors pulsed from the encoder, so
+# the packages that only look for a press (browse.yaml) or a short click
+# (lights.yaml) work unchanged. What a knob cannot do - holding left or
+# right down - is wired to the knob directly where it matters
+# (sendspin-addon-knob.yaml) or left out; see the device config.
+#
+# Provides the same four ids as packages/gpio.yaml upstream:
+#   side_button_sensor, left_button_sensor, middle_button_sensor,
+#   right_button_sensor
+# ============================================================
+
+substitutions:
+  knob_a_pin: GPIO45
+  knob_b_pin: GPIO42
+  knob_button_pin: GPIO41
+  # How long the knob has to be held to count as a side button press
+  knob_hold_time: 0.6s
+  # Length of the synthetic left / right pulse per detent
+  knob_pulse_time: 60ms
+
+sensor:
+  - platform: rotary_encoder
+    id: knob
+    internal: true
+    # GPIO45 is a strapping pin (VDD_SPI voltage select); input only here
+    pin_a:
+      number: ${knob_a_pin}
+      ignore_strapping_warning: true
+      mode:
+        input: true
+        pullup: true
+    pin_b:
+      number: ${knob_b_pin}
+      mode:
+        input: true
+        pullup: true
+    # One count per detent
+    resolution: 1
+    # The count itself is never used, only the direction triggers below.
+    # Don't restore it: the default would write to NVS on every detent.
+    restore_mode: ALWAYS_ZERO
+    on_clockwise:
+      - script.execute: knob_pulse_right
+    on_anticlockwise:
+      - script.execute: knob_pulse_left
+
+binary_sensor:
+  # The knob press is a real pin, so on_click / on_multi_click timings in the
+  # other packages see the actual press length
+  - platform: gpio
+    id: middle_button_sensor
+    name: "Knob Press"
+    pin:
+      number: ${knob_button_pin}
+      mode:
+        input: true
+        pullup: true
+      inverted: true
+    on_multi_click:
+      - timing:
+          - ON for at least ${knob_hold_time}
+        then:
+          - script.execute: knob_pulse_side
+
+  # Driven from the encoder, one pulse per detent
+  - platform: template
+    id: left_button_sensor
+    name: "Knob Left"
+    # See the note in touch.yaml: without this the first pulse after boot
+    # fires no on_press, so the first knob turn or hold was dropped.
+    trigger_on_initial_state: true
+
+  - platform: template
+    id: right_button_sensor
+    name: "Knob Right"
+    trigger_on_initial_state: true
+
+  # Driven by holding the knob down
+  - platform: template
+    id: side_button_sensor
+    name: "Knob Hold"
+    trigger_on_initial_state: true
+
+script:
+  # Queued, not restart: fast turning must still give one press per detent
+  # instead of one long press
+  - id: knob_pulse_left
+    mode: queued
+    then:
+      - binary_sensor.template.publish:
+          id: left_button_sensor
+          state: true
+      - delay: ${knob_pulse_time}
+      - binary_sensor.template.publish:
+          id: left_button_sensor
+          state: false
+      - delay: ${knob_pulse_time}
+
+  - id: knob_pulse_right
+    mode: queued
+    then:
+      - binary_sensor.template.publish:
+          id: right_button_sensor
+          state: true
+      - delay: ${knob_pulse_time}
+      - binary_sensor.template.publish:
+          id: right_button_sensor
+          state: false
+      - delay: ${knob_pulse_time}
+
+  # Long enough to register as a click (50-350ms) for browse.yaml
+  - id: knob_pulse_side
+    mode: restart
+    then:
+      - binary_sensor.template.publish:
+          id: side_button_sensor
+          state: true
+      - delay: 120ms
+      - binary_sensor.template.publish:
+          id: side_button_sensor
+          state: false

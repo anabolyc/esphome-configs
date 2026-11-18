@@ -1,0 +1,102 @@
+# ============================================================
+# Sendspin remote on an Elecrow CrowPanel 1.46" round HMI display
+# (SKU DHR55146D - ESP32-S3R8: 16 MB flash, 8 MB octal PSRAM)
+# ============================================================
+# The Radio Box Sendspin remote (sendspin-remote-02.yaml in
+# anabolyc/esp8266-radio-box) ported to the round 360x360 panel.
+#
+# What changed from the Radio Box remote:
+#   - Display: JD9855 / ST77961 360x360 round panel instead of the
+#     ST7789V 240x240 square one; init sequence is in display-round.yaml.
+#   - Backlight is its own pin (GPIO46), not shared with reset, so the
+#     "Display" switch just dims it and display_power.h is not needed.
+#   - Input: one rotary knob instead of four buttons. input-knob.yaml maps
+#     turn / press / hold onto the left, right, middle and side buttons the
+#     other packages expect.
+#   - Cover art is requested at the native 360 px, no upscaling.
+#
+#   - Touch: the CST816D panel, with swipe and tap gestures in
+#     touch.yaml. A horizontal swipe walks the screen cycle either way;
+#     see touch-actions.yaml.
+#
+# Not here yet (first step is the existing UI on the round screen):
+#   - Anything on a vertical swipe or a tap.
+#   - The 8 WS2812 LEDs (GPIO48, power gate GPIO17)
+#   - Previous / next track and seek: both were a double click or a hold on
+#     the left and right buttons, which a knob cannot do. They belong on the
+#     touch panel.
+#   - Deep sleep: every knob pin is outside the ESP32-S3's RTC range
+#     (GPIO0-21), so none of them can wake the chip. Only the backlight
+#     is switched off; see display-sleep.yaml.
+# ============================================================
+
+substitutions:
+  name: crowpanel-sendspin-remote
+  friendly_name: Knob Remote
+
+  # Home Assistant player the knob press resumes after playback was stopped,
+  # and that the SomaFM list plays on
+  sendspin_resume_entity: media_player.living_room
+
+  # Turn the picture upside down if the panel is mounted the other way round
+  lvgl_rotation: "0"
+
+  # 8 MB of PSRAM: native cover art and a quarter-screen LVGL buffer
+  task_stack_in_psram: true
+  cover_art_size: 360
+  lvgl_buffer_size: 25%
+
+  # Backlight off after this long without a knob turn or press
+  display_off_after: 60s
+
+esphome:
+  name: ${name}
+  friendly_name: ${friendly_name}
+  # 2026.9.0 platform-ised image: and resolves package .h includes
+  min_version: 2026.9.0
+  name_add_mac_suffix: false
+
+esp32:
+  variant: esp32s3
+  flash_size: 16MB
+  framework:
+    type: esp-idf
+
+psram:
+  mode: octal
+  speed: 80MHz
+
+logger:
+  level: DEBUG
+
+api:
+
+ota:
+  - platform: esphome
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  # Skip the scan: connect to the access point used last time
+  fast_connect: true
+
+packages:
+  # In this order: later packages extend earlier ones
+  - !include packages/crowpanel-dhr55146d/input-knob.yaml
+  - !include packages/crowpanel-dhr55146d/sendspin-screen-only.yaml
+  - !include packages/crowpanel-dhr55146d/display-round.yaml
+  - !include packages/crowpanel-dhr55146d/sendspin-addon-display.yaml
+  - !include packages/crowpanel-dhr55146d/sendspin-addon-knob.yaml
+  # After the knob package: browse.yaml's middle button handler must run after it
+  - !include packages/crowpanel-dhr55146d/browse.yaml
+  # Lists on the browse page, in knob-hold order
+  - !include packages/crowpanel-dhr55146d/somafm-stations.yaml
+  - !include packages/crowpanel-dhr55146d/bbc-stations.yaml
+  - !include packages/crowpanel-dhr55146d/ambient-scenes.yaml
+  # Screens after the lists, in knob-hold order
+  - !include packages/crowpanel-dhr55146d/lights.yaml
+  - !include packages/crowpanel-dhr55146d/display-sleep.yaml
+  # Needs the display from display-round.yaml
+  - !include packages/crowpanel-dhr55146d/touch.yaml
+  # After touch.yaml: it extends the gesture sensors declared there
+  - !include packages/crowpanel-dhr55146d/touch-actions.yaml

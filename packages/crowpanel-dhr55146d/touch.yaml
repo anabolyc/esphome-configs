@@ -1,0 +1,244 @@
+# ============================================================
+# Capacitive touch panel (CST816T) - hardware and gestures only
+# ============================================================
+# Declares the touch controller and turns finger movement into five
+# gestures: a swipe in each of the four directions, and a tap.
+#
+# Nothing is wired to them yet. Each gesture pulses its own template
+# binary sensor and updates the "Last Touch Gesture" diagnostic sensor,
+# so the gestures can be watched in Home Assistant or in the log before
+# any of them is given a job. A later package attaches behaviour the same
+# way sendspin-addon-knob.yaml does for the knob:
+#
+#   binary_sensor:
+#     - id: !extend touch_swipe_left_sensor
+#       on_press:
+#         - ...
+#
+# Pins are from Elecrow's own schematic (Eagle_SCH&PCB/ESP32
+# Display-1.46-V1.0.sch, net names TP_SDA / TP_SCL / TP_INT / TP_RST on
+# the 18-pin touch FPC U46). Note that this is NOT the GPIO38/39 pair:
+# that is the level-shifted I2C broken out to the board's 4-pin JST
+# connector for user peripherals, and it is left undeclared here.
+#
+# Deliberately not done yet:
+#   - No page changes, volume, playback or light control on any gesture.
+#   - No "touch wakes the display": display-sleep.yaml restarts its timer
+#     from the four knob sensors only. Adding touch is one !extend block,
+#     but display sleep is off by default on this board, so it would do
+#     nothing visible today.
+#   - No long press. The classifier already measures the press duration,
+#     so it is a third branch when something needs it.
+#
+# LVGL picks this touchscreen up automatically - there is no way to tell
+# it not to. That is harmless for now because every widget in the current
+# UI is clickable: false, so LVGL has nothing to react to. It is also the
+# foundation for using LVGL's own on_swipe_* triggers later, which are
+# per-widget rather than global like the sensors below.
+#
+# Requires:
+#   - packages/crowpanel-dhr55146d/display-round.yaml (display s3_box_lcd)
+# ============================================================
+
+# Override in the device config substitutions
+substitutions:
+  # Touch FPC
+  touch_sda_pin: GPIO6
+  touch_scl_pin: GPIO7
+  touch_interrupt_pin: GPIO5
+  touch_reset_pin: GPIO13
+  touch_i2c_frequency: 400kHz
+
+  # Some CST816T firmware does not signal lift-off, so the touchscreen
+  # component re-reads this long after the last interrupt to notice the
+  # release. Without it a swipe could never finish.
+  touch_release_timeout: 50ms
+
+  # Mirror these to match lvgl_rotation when the panel is turned round:
+  # the picture is rotated in software, the touch coordinates are not.
+  touch_mirror_x: false
+  touch_mirror_y: false
+  touch_swap_xy: false
+
+  # Gesture thresholds, in display pixels of 360 and milliseconds.
+  #
+  # The two distances are deliberately the same number: a swipe is checked
+  # first, so anything that travels further than this and runs along one
+  # axis is a swipe, and anything that travels less is a tap. Leaving a gap
+  # between them (60 and 20 at first) made a 33 px flick land in neither.
+  touch_swipe_min_distance: 45
+  touch_tap_max_distance: 45
+  # Generous, because a slow deliberate drag is still a swipe: a 332 px
+  # pull up the screen took 895 ms on test and was thrown away at 600.
+  touch_swipe_max_time: 1200
+  # How much longer the travel has to be along one axis than the other
+  # before it counts as a swipe. 1.4 is about a 35 degree cone around each
+  # diagonal in which nothing is reported, rather than guessing.
+  touch_swipe_ratio: 1.4
+  # Shorter than the swipe window on purpose: a still press held longer
+  # than this reports nothing, which leaves room for a long press later.
+  touch_tap_max_time: 400
+
+  # How long a gesture's binary sensor stays on
+  touch_pulse_time: 60ms
+
+i2c:
+  - id: i2c_touch
+    sda: ${touch_sda_pin}
+    scl: ${touch_scl_pin}
+    frequency: ${touch_i2c_frequency}
+    # Logs the addresses found at boot; 0x15 is the touch controller
+    scan: true
+
+globals:
+  - id: touch_start_x
+    type: int
+    restore_value: false
+    initial_value: "0"
+  - id: touch_start_y
+    type: int
+    restore_value: false
+    initial_value: "0"
+  - id: touch_last_x
+    type: int
+    restore_value: false
+    initial_value: "0"
+  - id: touch_last_y
+    type: int
+    restore_value: false
+    initial_value: "0"
+  - id: touch_start_ms
+    type: uint32_t
+    restore_value: false
+    initial_value: "0"
+
+touchscreen:
+  - platform: cst816
+    id: touch_panel
+    display: s3_box_lcd
+    i2c_id: i2c_touch
+    interrupt_pin: ${touch_interrupt_pin}
+    reset_pin: ${touch_reset_pin}
+    touch_timeout: ${touch_release_timeout}
+    transform:
+      mirror_x: ${touch_mirror_x}
+      mirror_y: ${touch_mirror_y}
+      swap_xy: ${touch_swap_xy}
+
+    # The interrupt pin is wired, so the component stops its own poller
+    # after the first tick and logs one "Touch Polling Stopped" warning.
+    # That line is expected, and it confirms the interrupt was attached.
+
+    on_touch:
+      - lambda: |-
+          id(touch_start_x) = touch.x;
+          id(touch_start_y) = touch.y;
+          id(touch_last_x) = touch.x;
+          id(touch_last_y) = touch.y;
+          id(touch_start_ms) = millis();
+          ESP_LOGD("touch", "Press at (%d, %d), raw (%d, %d)", (int) touch.x, (int) touch.y,
+                   (int) touch.x_raw, (int) touch.y_raw);
+
+    on_update:
+      - lambda: |-
+          if (!touches.empty()) {
+            id(touch_last_x) = touches[0].x;
+            id(touch_last_y) = touches[0].y;
+          }
+
+    on_release:
+      - lambda: |-
+          const int dx = id(touch_last_x) - id(touch_start_x);
+          const int dy = id(touch_last_y) - id(touch_start_y);
+          const int adx = dx < 0 ? -dx : dx;
+          const int ady = dy < 0 ? -dy : dy;
+          const uint32_t dt = millis() - id(touch_start_ms);
+
+          const int min_swipe = ${touch_swipe_min_distance};
+          const float ratio = ${touch_swipe_ratio};
+          const bool quick = dt <= ${touch_swipe_max_time};
+
+          esphome::binary_sensor::BinarySensor *hit = nullptr;
+          const char *label = "none";
+
+          // y grows downwards, so a positive dy is a downward swipe
+          if (quick && adx >= min_swipe && adx >= ratio * ady) {
+            hit = dx > 0 ? id(touch_swipe_right_sensor) : id(touch_swipe_left_sensor);
+            label = dx > 0 ? "swipe right" : "swipe left";
+          } else if (quick && ady >= min_swipe && ady >= ratio * adx) {
+            hit = dy > 0 ? id(touch_swipe_down_sensor) : id(touch_swipe_up_sensor);
+            label = dy > 0 ? "swipe down" : "swipe up";
+          } else if (dt <= ${touch_tap_max_time} && adx <= ${touch_tap_max_distance} &&
+                     ady <= ${touch_tap_max_distance}) {
+            hit = id(touch_tap_sensor);
+            label = "tap";
+          }
+
+          ESP_LOGD("touch", "Release: %s, moved (%d, %d) in %u ms", label, dx, dy, (unsigned) dt);
+
+          if (hit != nullptr) {
+            hit->publish_state(true);
+            id(touch_gesture_clear)->execute();
+          }
+          id(touch_last_gesture).publish_state(label);
+
+binary_sensor:
+  # Attachment points for later packages. They pulse for
+  # ${touch_pulse_time} and go back off.
+  - platform: template
+    id: touch_swipe_left_sensor
+    name: "Swipe Left"
+    # The first pulse after boot is a real gesture, not a startup artefact.
+    # Without this ESPHome's setup_binary_sensor_core_ defaults
+    # trigger_on_initial_state to false, overriding the C++ default, and the
+    # very first publish fires no on_press - so the first gesture of every
+    # session was silently dropped.
+    trigger_on_initial_state: true
+  - platform: template
+    id: touch_swipe_right_sensor
+    name: "Swipe Right"
+    trigger_on_initial_state: true
+  - platform: template
+    id: touch_swipe_up_sensor
+    name: "Swipe Up"
+    trigger_on_initial_state: true
+  - platform: template
+    id: touch_swipe_down_sensor
+    name: "Swipe Down"
+    trigger_on_initial_state: true
+  - platform: template
+    id: touch_tap_sensor
+    name: "Tap"
+    trigger_on_initial_state: true
+
+text_sensor:
+  # Only here to watch the classifier while touch has no job yet
+  - platform: template
+    id: touch_last_gesture
+    name: "Last Touch Gesture"
+    icon: mdi:gesture-tap
+    entity_category: diagnostic
+    update_interval: never
+
+script:
+  # One shared timer rather than five: a finger cannot produce two
+  # gestures ${touch_pulse_time} apart, so restart semantics are enough.
+  - id: touch_gesture_clear
+    mode: restart
+    then:
+      - delay: ${touch_pulse_time}
+      - binary_sensor.template.publish:
+          id: touch_swipe_left_sensor
+          state: false
+      - binary_sensor.template.publish:
+          id: touch_swipe_right_sensor
+          state: false
+      - binary_sensor.template.publish:
+          id: touch_swipe_up_sensor
+          state: false
+      - binary_sensor.template.publish:
+          id: touch_swipe_down_sensor
+          state: false
+      - binary_sensor.template.publish:
+          id: touch_tap_sensor
+          state: false
